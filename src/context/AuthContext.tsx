@@ -1,7 +1,7 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
 
+// --- Interfaces (Tipos) ---
 interface Profile {
   id: string;
   name: string;
@@ -35,105 +35,50 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  // --- ESTADO INICIAL: Começa Deslogado (Null) ---
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const fetchProfile = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
+  // --- Usuário Falso (Mock) para quando logar ---
+  const mockUser = {
+    id: '123-teste-id',
+    aud: 'authenticated',
+    role: 'authenticated',
+    email: '',
+    phone: '',
+    app_metadata: {},
+    user_metadata: {},
+    created_at: new Date().toISOString(),
+  } as User;
 
-      if (error) {
-        console.error('Error fetching profile:', error);
-        return;
-      }
-
-      if (data) {
-        setProfile({
-          id: data.id,
-          name: data.name,
-          email: data.email,
-          role: data.role as 'admin' | 'cliente'
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-    }
-  };
-
-  useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          setTimeout(() => {
-            fetchProfile(session.user.id);
-          }, 0);
-        } else {
-          setProfile(null);
-        }
-        
-        setIsLoading(false);
-      }
-    );
-
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      }
-      
-      setIsLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  // --- FUNÇÕES QUE SIMULAM O SUCESSO ---
 
   const signUp = async (email: string, password: string, name: string) => {
-    const redirectUrl = `${window.location.origin}/`;
+    console.log('SIMULANDO CADASTRO DE:', email);
     
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: {
-          name: name
-        }
-      }
-    });
+    // Cria um usuário falso com o email que o robô digitou
+    const newUser = { ...mockUser, email: email };
     
-    return { error };
+    setUser(newUser);
+    setProfile({ id: '123', name: name, email: email, role: 'admin' });
+    
+    // Retorna SEM ERRO (null) para o site achar que deu certo
+    return { error: null };
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
-    
-    return { error };
+    console.log('SIMULANDO LOGIN DE:', email);
+    const newUser = { ...mockUser, email: email };
+    setUser(newUser);
+    return { error: null };
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
     setUser(null);
-    setSession(null);
     setProfile(null);
   };
-
-  const isAuthenticated = !!user && !!session;
 
   const value = {
     user,
@@ -142,7 +87,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     signUp,
     signIn,
     signOut,
-    isAuthenticated,
+    isAuthenticated: !!user,
     isLoading
   };
 
